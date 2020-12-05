@@ -1,0 +1,26 @@
+#!/bin/sh
+
+name="unmanic"
+servicename="$(basename $0)"
+. /etc/profile
+oe_setup_addon "$servicename"
+
+# add image to cron updater list
+if [ ! -f /storage/.kodi/userdata/addon_data/docker.linuxserver.updater/update.sh ]; then
+  sleep 10
+fi
+
+if ! grep -q "josh5/unmanic" /storage/.kodi/userdata/addon_data/docker.linuxserver.updater/update.sh; then
+  echo "/storage/.kodi/addons/service.system.docker/bin/docker pull josh5/unmanic" >> /storage/.kodi/userdata/addon_data/docker.linuxserver.updater/update.sh
+fi
+
+docker rm "${name}" 2>/dev/null
+docker rmi $(docker images | grep 'unmanic' | grep '<none>' | sed 's/\s\+/\t/g' | cut -f3) 2> /dev/null
+docker run --name="${name}" \
+           --rm \
+           --network=lsio \
+           -v /etc/localtime:/etc/localtime:ro \
+           -v "$V_config":/data \
+           -v /var/run/docker.sock:/var/run/docker.sock \
+           -p "$P_port":9000 \
+           josh5/unmanic
