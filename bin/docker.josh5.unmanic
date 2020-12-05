@@ -3,7 +3,28 @@
 name="unmanic"
 servicename="$(basename $0)"
 . /etc/profile
+
+if [ -f /storage/.cache/timezone ]; then
+ . /storage/.cache/timezone
+else
+ TIMEZONE="Pacific/Auckland"
+fi
+
 oe_setup_addon "$servicename"
+
+#set uid/gid
+if [ "$E_manual_uid" = "false" ]; then
+  E_PUID="65534"
+  E_PGID="100"
+fi
+
+#set hw transcode options
+if [ -d "/dev/dri" ]; then
+  D_vaapi_args="--device /dev/dri:/dev/dri"
+  echo "/dev/dri found, mapping device"
+else
+  echo "/dev/dri not found, skipping vaapi hw transcode"
+fi
 
 # add image to cron updater list
 if [ ! -f /storage/.kodi/userdata/addon_data/docker.linuxserver.updater/update.sh ]; then
@@ -16,11 +37,25 @@ fi
 
 docker rm "${name}" 2>/dev/null
 docker rmi $(docker images | grep 'unmanic' | grep '<none>' | sed 's/\s\+/\t/g' | cut -f3) 2> /dev/null
-docker run --name="${name}" \
-           --rm \
-           --network=lsio \
-           -v /etc/localtime:/etc/localtime:ro \
-           -v "$V_config":/data \
-           -v /var/run/docker.sock:/var/run/docker.sock \
-           -p "$P_port":9000 \
-           josh5/unmanic
+mkdir -p "${V_config}" "${V_library}" "${V_cache}"
+for i in "${V_config}" "${V_library}" "${V_cache}"; do
+  if [ ! "$(ls -nd $i | awk '{print $3}')" = "${E_PUID}" ]; then
+    echo "attempting chown ${E_PUID}/${E_PGID} on $i"
+    chown -R "${E_PUID}":"${E_PGID}" "$i" 2>&1 >/dev/null
+    echo "chown attempt completed, moving on"
+  else
+    echo "skipping chown, make sure the folder $i is accessible by the user ${E_PUID}:${E_PGID}"
+  fi
+done
+
+docker run --rm --name="${name}" \
+    -e TZ="${TIMEZONE}" \
+    -p "${P_port}":8888 \
+    -e PUID="${E_PUID}" \
+    -e PGID="${E_PGID}" \
+    -v "${V_config}":/config \
+    -v "${V_library}":/library \
+    -v "${V_cache}":/tmp/unmanic \
+    ${D_vaapi_args} \
+    ${E_PARAMS} \
+    josh5/unmanic:${E_VERSION}
