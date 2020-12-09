@@ -6,4 +6,4 @@
 docker stop unmanic
 
 # remove image from cron updater list
-sed -i '/unmanic/d' /storage/.kodi/userdata/addon_data/docker.linuxserver.updater/update.sh
+sed -i '/unmanic/d' /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/update.sh

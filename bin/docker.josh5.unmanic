@@ -26,27 +26,41 @@ else
   echo "/dev/dri not found, skipping vaapi hw transcode"
 fi
 
-# add image to cron updater list
-if [ ! -f /storage/.kodi/userdata/addon_data/docker.linuxserver.updater/update.sh ]; then
-  sleep 10
+# create update.sh
+if [ ! -f /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/update.sh ]; then
+  echo "#!/bin/sh" > /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/update.sh
+  chmod +x /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/update.sh
 fi
 
-if ! grep -q "josh5/unmanic" /storage/.kodi/userdata/addon_data/docker.linuxserver.updater/update.sh; then
-  echo "/storage/.kodi/addons/service.system.docker/bin/docker pull josh5/unmanic" >> /storage/.kodi/userdata/addon_data/docker.linuxserver.updater/update.sh
+# create prune.sh
+echo "#!/bin/sh" > /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/prune.sh
+echo "/storage/.kodi/addons/service.system.docker/bin/docker image prune -f" >> /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/prune.sh
+chmod +x /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/prune.sh
+
+# Add update.sh && prune.sh scripts to cron
+if ! grep -q 'docker.josh5.unmanic/update.sh' /storage/.cache/cron/crontabs/root; then
+  echo '15 3 * * * /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/update.sh > /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/update.log && /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/prune.sh > /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/prune.log' >> /storage/.cache/cron/crontabs/root
+  systemctl restart cron
+fi
+
+# Add unmanic image to update.sh
+if ! grep -q "josh5/unmanic:${E_VERSION}" /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/update.sh; then
+  echo "/storage/.kodi/addons/service.system.docker/bin/docker pull josh5/unmanic:${E_VERSION}" > /storage/.kodi/userdata/addon_data/docker.josh5.unmanic/update.sh
 fi
 
 docker rm "${name}" 2>/dev/null
 docker rmi $(docker images | grep 'unmanic' | grep '<none>' | sed 's/\s\+/\t/g' | cut -f3) 2> /dev/null
 mkdir -p "${V_config}" "${V_library}" "${V_cache}"
-for i in "${V_config}" "${V_library}" "${V_cache}"; do
-  if [ ! "$(ls -nd $i | awk '{print $3}')" = "${E_PUID}" ]; then
-    echo "attempting chown ${E_PUID}/${E_PGID} on $i"
-    chown -R "${E_PUID}":"${E_PGID}" "$i" 2>&1 >/dev/null
-    echo "chown attempt completed, moving on"
-  else
-    echo "skipping chown, make sure the folder $i is accessible by the user ${E_PUID}:${E_PGID}"
-  fi
-done
+# Dont set permissions... this causes more grief than it's worth!
+#for i in "${V_config}" "${V_library}" "${V_cache}"; do
+#  if [ ! "$(ls -nd $i | awk '{print $3}')" = "${E_PUID}" ]; then
+#    echo "attempting chown ${E_PUID}/${E_PGID} on $i"
+#    chown -R "${E_PUID}":"${E_PGID}" "$i" 2>&1 >/dev/null
+#    echo "chown attempt completed, moving on"
+#  else
+#    echo "skipping chown, make sure the folder $i is accessible by the user ${E_PUID}:${E_PGID}"
+#  fi
+#done
 
 docker run --rm --name="${name}" \
     -e TZ="${TIMEZONE}" \
